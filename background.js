@@ -1,21 +1,25 @@
 let activeTabId = null;
 let activeHostname = null;
 let timerInterval = null;
-let secondCounter = 0; // Saniyələri daxildə saymaq üçün
+let siteSeconds = {}; // Hər saytın saniyəsini ayrı saxlamaq üçün obyekt
 
 chrome.tabs.onActivated.addListener(activeInfo => {
     checkTab(activeInfo.tabId);
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    if (changeInfo.status === 'complete' && tab.active) {
+    // SPA saytlarda URL dəyişəndə və ya tam yüklənəndə yoxla
+    if ((changeInfo.status === 'complete' || changeInfo.url) && tab.active) {
         checkTab(tabId);
     }
 });
 
 function checkTab(tabId) {
     chrome.tabs.get(tabId, (tab) => {
-        if (chrome.runtime.lastError || !tab || !tab.url) return;
+        if (chrome.runtime.lastError || !tab || !tab.url) {
+            stopTracking();
+            return;
+        }
         
         try {
             const url = new URL(tab.url);
@@ -28,25 +32,30 @@ function checkTab(tabId) {
 }
 
 function startTracking(tabId, hostname) {
+    if (activeTabId === tabId && activeHostname === hostname) return; // Artıq eyni tab izlənilirsa, yenidən başlatma
+    
     stopTracking();
     
     activeTabId = tabId;
     activeHostname = hostname;
-    secondCounter = 0; // Yeni taba keçəndə saniyəni sıfırla
 
     timerInterval = setInterval(() => {
         chrome.storage.sync.get(['focusActive', 'blockedSitesObj', 'spentTimes'], (data) => {
-            if (!data.focusActive) return;
+            if (!data.focusActive || !activeHostname) return;
 
             const sites = data.blockedSitesObj || [];
             const matchedSite = sites.find(site => activeHostname.includes(site.url));
 
             if (matchedSite) {
-                secondCounter++;
+                if (!siteSeconds[matchedSite.url]) {
+                    siteSeconds[matchedSite.url] = 0;
+                }
                 
-                // Hər 60 saniyə tamam olanda yaddaşda 1 dəqiqə artır
-                if (secondCounter >= 60) {
-                    secondCounter = 0; // Saniyəni sıfırla
+                siteSeconds[matchedSite.url]++;
+                
+                // 60 saniyə tamam olanda yaddaşda 1 dəqiqə artır
+                if (siteSeconds[matchedSite.url] >= 60) {
+                    siteSeconds[matchedSite.url] = 0;
                     let spentTimes = data.spentTimes || {};
                     let currentSpent = spentTimes[matchedSite.url] || 0;
 
@@ -56,7 +65,7 @@ function startTracking(tabId, hostname) {
                     chrome.storage.sync.set({ spentTimes: spentTimes });
                 }
 
-                // Əgər limit artıq keçilibsə (və ya tam o anda keçildisə) dərhal blokla
+                // Limiti dərhal yoxla
                 let spentTimes = data.spentTimes || {};
                 let currentSpent = spentTimes[matchedSite.url] || 0;
                 
@@ -64,11 +73,13 @@ function startTracking(tabId, hostname) {
                     chrome.tabs.sendMessage(activeTabId, { 
                         action: "blockSite", 
                         color: matchedSite.color 
-                    }).catch(() => {});
+                    }).catch(() => {
+                        // Əgər mesaj çatmasa (content script hələ tam yüklənməyibsə), yenidən inject etməyə cəhd edə bilər
+                    });
                 }
             }
         });
-    }, 1000); // Hər saniyə daxili yoxlama aparır
+    }, 1000);
 }
 
 function stopTracking() {
@@ -78,5 +89,4 @@ function stopTracking() {
     }
     activeTabId = null;
     activeHostname = null;
-    secondCounter = 0;
 }
