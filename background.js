@@ -1,92 +1,83 @@
-let activeTabId = null;
-let activeHostname = null;
-let timerInterval = null;
-let siteSeconds = {}; // Hər saytın saniyəsini ayrı saxlamaq üçün obyekt
+let isBlocked = false;
 
-chrome.tabs.onActivated.addListener(activeInfo => {
-    checkTab(activeInfo.tabId);
-});
+const crazyScroll = (e) => {
+    if (isBlocked) {
+        e.preventDefault();
+        const direction = Math.random() > 0.7 ? -2 : 0.5; 
+        window.scrollBy({ top: e.deltaY * direction, behavior: 'instant' });
+    }
+};
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    // SPA saytlarda URL dəyişəndə və ya tam yüklənəndə yoxla
-    if ((changeInfo.status === 'complete' || changeInfo.url) && tab.active) {
-        checkTab(tabId);
+window.addEventListener('wheel', crazyScroll, { passive: false });
+window.addEventListener('touchmove', crazyScroll, { passive: false });
+
+// 1. Background-dan gələn dinamik bloklama mesajını tutmaq
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "blockSite" && !isBlocked) {
+        executeDigitalWall(request.color);
     }
 });
 
-function checkTab(tabId) {
-    chrome.tabs.get(tabId, (tab) => {
-        if (chrome.runtime.lastError || !tab || !tab.url) {
-            stopTracking();
-            return;
-        }
-        
-        try {
-            const url = new URL(tab.url);
-            const hostname = url.hostname;
-            startTracking(tabId, hostname);
-        } catch(e) {
-            stopTracking();
+// 2. Səhifə yenilənəndə (Refresh) əgər limit artıq bitibsə, dərhal blokla
+function checkCurrentStatusOnLoad() {
+    chrome.storage.sync.get(['focusActive', 'blockedSitesObj', 'spentTimes'], (data) => {
+        if (!data.focusActive) return;
+
+        const currentHostname = window.location.hostname;
+        const sites = data.blockedSitesObj || [];
+        const matchedSite = sites.find(site => currentHostname.includes(site.url));
+
+        if (matchedSite) {
+            const spentTimes = data.spentTimes || {};
+            const currentSpent = spentTimes[matchedSite.url] || 0;
+
+            if (currentSpent >= matchedSite.time) {
+                executeDigitalWall(matchedSite.color);
+            }
         }
     });
 }
 
-function startTracking(tabId, hostname) {
-    if (activeTabId === tabId && activeHostname === hostname) return; // Artıq eyni tab izlənilirsa, yenidən başlatma
-    
-    stopTracking();
-    
-    activeTabId = tabId;
-    activeHostname = hostname;
+function executeDigitalWall(alertColor) {
+    if (isBlocked) return;
+    isBlocked = true;
 
-    timerInterval = setInterval(() => {
-        chrome.storage.sync.get(['focusActive', 'blockedSitesObj', 'spentTimes'], (data) => {
-            if (!data.focusActive || !activeHostname) return;
-
-            const sites = data.blockedSitesObj || [];
-            const matchedSite = sites.find(site => activeHostname.includes(site.url));
-
-            if (matchedSite) {
-                if (!siteSeconds[matchedSite.url]) {
-                    siteSeconds[matchedSite.url] = 0;
-                }
-                
-                siteSeconds[matchedSite.url]++;
-                
-                // 60 saniyə tamam olanda yaddaşda 1 dəqiqə artır
-                if (siteSeconds[matchedSite.url] >= 60) {
-                    siteSeconds[matchedSite.url] = 0;
-                    let spentTimes = data.spentTimes || {};
-                    let currentSpent = spentTimes[matchedSite.url] || 0;
-
-                    currentSpent++;
-                    spentTimes[matchedSite.url] = currentSpent;
-
-                    chrome.storage.sync.set({ spentTimes: spentTimes });
-                }
-
-                // Limiti dərhal yoxla
-                let spentTimes = data.spentTimes || {};
-                let currentSpent = spentTimes[matchedSite.url] || 0;
-                
-                if (currentSpent >= matchedSite.time) {
-                    chrome.tabs.sendMessage(activeTabId, { 
-                        action: "blockSite", 
-                        color: matchedSite.color 
-                    }).catch(() => {
-                        // Əgər mesaj çatmasa (content script hələ tam yüklənməyibsə), yenidən inject etməyə cəhd edə bilər
-                    });
-                }
-            }
-        });
-    }, 1000);
-}
-
-function stopTracking() {
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
+    // Səhifənin daxilini təmizləmək və ya tam örtmək üçün overlay
+    let overlay = document.getElementById("focus-overlay");
+    if (!overlay) {
+        overlay = document.createElement("div");
+        overlay.id = "focus-overlay";
+        document.body.appendChild(overlay);
     }
-    activeTabId = null;
-    activeHostname = null;
+
+    Object.assign(overlay.style, {
+        position: "fixed", top: "0", left: "0", width: "100vw", height: "100vh",
+        zIndex: "2147483645", pointerEvents: "auto",
+        backgroundColor: `${alertColor}dd`, backdropFilter: "blur(10px) grayscale(100%)",
+        transition: "all 0.5s ease"
+    });
+
+    const alertBox = document.createElement("div");
+    alertBox.id = "focus-alert-box";
+    Object.assign(alertBox.style, {
+        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
+        backgroundColor: "#121212", color: "#fff", padding: "40px",
+        borderRadius: "16px", fontSize: "22px", fontWeight: "bold",
+        boxShadow: "0 20px 50px rgba(0,0,0,0.5)", border: `3px solid ${alertColor}`,
+        zIndex: "2147483647", fontFamily: "sans-serif", textAlign: "center",
+        maxWidth: "400px", width: "80%"
+    });
+    
+    alertBox.innerHTML = `
+        <div style="font-size: 50px; margin-bottom: 15px;">🛑</div>
+        <span style="color: ${alertColor}; text-transform: uppercase;">Daily Limit Reached!</span>
+        <p style="font-size: 14px; font-weight: normal; color: #a4b0be; margin: 15px 0 0 0;">
+            Your time for this platform has expired. The block will remain active even if you refresh. Welcome back to the real world!
+        </p>
+    `;
+    
+    document.body.appendChild(alertBox);
 }
+
+// Səhifə yüklənən kimi statusu yoxla
+checkCurrentStatusOnLoad();
