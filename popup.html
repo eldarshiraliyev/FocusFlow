@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    /* ==========================================================================
+       Dinamik Mövzu Sistemi (System-Wide Theme Adaptation)
+       ========================================================================== */
+    
+    /* DEFAULT: Açıq Mövzu (Sistem Ağ Rejimdə olanda) */
+    :root { 
+        --bg: #f9f9fb; 
+        --surface: #ffffff; 
+        --surface-card: #f1f1f4;
+        --primary: #ff4757; 
+        --text: #18181b; 
+        --text-muted: #71717a;
+        --accent: #10b981; 
+        --border: rgba(0, 0, 0, 0.06);
+        --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 10px 20px -4px rgba(0, 0, 0, 0.05), 0 4px 8px -2px rgba(0, 0, 0, 0.03);
+        --btn-add-bg: #18181b;
+        --btn-add-text: #ffffff;
+        --btn-add-hover: #27272a;
+    }
+
+    /* AVTOMATİK: Tünd Mövzu (Sistem Qara Rejimdə olanda) */
+    @media (prefers-color-scheme: dark) {
+      :root {
+          --bg: #09090b; 
+          --surface: #141417; 
+          --surface-card: #1c1c21;
+          --primary: #ff4757; 
+          --text: #f4f4f5; 
+          --text-muted: #a1a1aa;
+          --accent: #10b981; 
+          --border: rgba(255, 255, 255, 0.06);
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+          --shadow-md: 0 12px 24px -4px rgba(0, 0, 0, 0.6), 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+          --btn-add-bg: #ffffff;
+          --btn-add-text: #000000;
+          --btn-add-hover: #e4e4e7;
+      }
+    }
+
+    body { 
+        width: 340px; padding: 24px; margin: 0; 
+        font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+        background-color: var(--bg); color: var(--text); 
+        letter-spacing: -0.2px;
+        transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .brand h3 { margin: 0; font-size: 20px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+    .brand p.subtitle { margin: 4px 0 0 0; font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .toggle-btn {
+        padding: 8px 14px; cursor: pointer;
+        background: var(--surface); color: var(--text-muted); border: 1px solid var(--border);
+        border-radius: 20px; font-weight: 600; font-size: 12px; transition: all 0.2s ease;
+        display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm);
+    }
+    .toggle-btn:hover { border-color: rgba(128,128,128,0.2); color: var(--text); }
+    .toggle-btn.active { background: rgba(255, 71, 87, 0.15); border-color: var(--primary); color: var(--primary); font-weight: 700; }
+
+    .dashboard { 
+        display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;
+    }
+    .stat-card {
+        background: var(--surface); border: 1px solid var(--border); padding: 14px; 
+        border-radius: 12px; box-shadow: var(--shadow-sm); transition: 0.3s;
+    }
+    .stat-card:hover { border-color: rgba(128,128,128,0.2); }
+    .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; display: flex; align-items: center; gap: 4px; margin-bottom: 6px; }
+    .stat-value { font-size: 18px; font-weight: 700; color: var(--text); }
+    .stat-value span { font-size: 12px; font-weight: 500; color: var(--text-muted); }
+
+    .setting-group { 
+        margin-bottom: 20px; background: var(--surface); padding: 16px; 
+        border-radius: 14px; border: 1px solid var(--border); box-shadow: var(--shadow-md);
+    }
+    label { display: block; font-size: 11px; margin-bottom: 8px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+    
+    .input-wrapper { display: flex; align-items: center; background: var(--surface-card); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; margin-bottom: 12px; }
+    .input-wrapper svg { color: var(--text-muted); margin-right: 8px; }
+    
+    input[type="text"], input[type="number"] {
+        width: 100%; padding: 12px 0; border: none; background: transparent; color: var(--text); font-size: 14px; outline: none; font-family: inherit;
+    }
+    
+    .color-picker-wrapper { display: flex; align-items: center; justify-content: space-between; background: var(--surface-card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 16px; }
+    input[type="color"] { -webkit-appearance: none; border: none; width: 40px; height: 26px; border-radius: 6px; cursor: pointer; background: transparent; }
+    input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
+    
+    .flex-row { display: flex; gap: 12px; }
+    .flex-row > div { flex: 1; }
+    
+    .add-btn { 
+        width: 100%; background: var(--btn-add-bg); color: var(--btn-add-text); border: none; 
+        border-radius: 8px; cursor: pointer; padding: 12px; font-weight: 600; transition: 0.2s; font-size: 13px;
+        display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .add-btn:hover { background: var(--btn-add-hover); transform: translateY(-1px); }
+
+    .quick-select { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; justify-content: flex-start; }
+    .quick-btn {
+        background: var(--surface); border: 1px solid var(--border); color: var(--text); 
+        padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: 500; cursor: pointer; 
+        transition: all 0.2s; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm);
+    }
+    .quick-btn:hover { background: var(--surface-card); border-color: rgba(128,128,128,0.2); }
+    .quick-btn.active { background: rgba(16, 185, 129, 0.1); border-color: var(--accent); color: var(--accent); }
+
+    #siteList { max-height: 160px; overflow-y: auto; margin-top: 10px; padding-right: 2px; }
+    #siteList::-webkit-scrollbar { width: 4px; }
+    #siteList::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+    
+    .site-item { 
+        display: flex; justify-content: space-between; align-items: center; 
+        background: var(--surface); padding: 12px 14px; margin-bottom: 8px; border-radius: 10px; 
+        border: 1px solid var(--border); border-left: 4px solid var(--primary); box-shadow: var(--shadow-sm);
+    }
+    .site-info { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+    .site-url { font-weight: 600; color: var(--text); }
+    .site-meta { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+    .remove-site { color: var(--text-muted); cursor: pointer; font-size: 14px; transition: 0.2s; padding: 4px; }
+    .remove-site:hover { color: var(--primary); }
+
+    .status-panel { background: rgba(16, 185, 129, 0.06); border: 1px solid rgba(16, 185, 129, 0.15); padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 12px; font-weight: 500; text-align: center; color: var(--accent); display: none; box-shadow: var(--shadow-sm); }
+
+    .reset-btn { 
+        width: 100%; padding: 12px; margin-top: 5px; 
+        background: transparent; color: var(--text-muted); 
+        border: 1px dashed var(--border); border-radius: 10px; 
+        cursor: pointer; font-size: 13px; font-weight: 600; transition: 0.2s; 
+        display: flex; align-items: center; justify-content: center; gap: 6px; 
+    }
+    .reset-btn:hover { color: var(--text); background: rgba(128,128,128,0.05); border-color: rgba(128,128,128,0.3); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 6C5 3.79086 6.79086 2 9 2H15C17.2091 2 19 3.79086 19 6V18C19 20.2091 17.2091 22 15 22H9C6.79086 22 5 20.2091 5 18V6Z"/>
+          <path d="M5 12H19"/>
+        </svg>
+        FocusFlow
+      </h3>
+      <p class="subtitle">Focus & Dopamine Control</p>
+    </div>
+    
+    <button id="toggleBtn" class="toggle-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      <span>OFF</span>
+    </button>
+  </div>
+
+  <div class="dashboard">
+    <div class="stat-card">
+      <div class="stat-label">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Today's Usage
+      </div>
+      <div class="stat-value" id="statToday">0 <span>min</span></div>
+      <div id="statTodaySub" style="font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">Top: None</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 16-4 4-4-4"/><path d="M17 20V4"/><path d="m3 8 4-4 4 4"/><path d="M7 4v16"/></svg>
+        Time Left
+      </div>
+      <div class="stat-value" id="statRemaining">--</div>
+    </div>
+  </div>
+
+  <div id="liveStatus" class="status-panel">🎯 Current tab is being monitored...</div>
+
+  <div class="setting-group">
+    <label>Add Distracting Site</label>
+    <div class="input-wrapper">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+      <input type="text" id="newSite" placeholder="e.g., instagram.com">
+    </div>
+    
+    <div class="flex-row">
+      <div style="flex: 1.5;">
+        <label>Time Limit</label>
+        <div class="input-wrapper">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <input type="number" id="alertTime" value="5" min="1" placeholder="Min">
+        </div>
+      </div>
+      <div style="flex: 1;">
+        <label>Wall Color</label>
+        <div class="color-picker-wrapper">
+          <input type="color" id="alertColor" value="#ff4757">
+        </div>
+      </div>
+    </div>
+    
+    <button class="add-btn" id="addSiteBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add to Blocklist
+    </button>
+  </div>
+
+  <div class="quick-select" id="quickSelectContainer">
+    <button class="quick-btn" data-site="youtube.com" data-time="15" data-color="#ff0000">▶️ YouTube</button>
+    <button class="quick-btn" data-site="instagram.com" data-time="10" data-color="#e1306c">📸 Instagram</button>
+  </div>
+  
+  <div id="siteList"></div>
+  
+  <button id="resetBtn" class="reset-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><polyline points="3 3 3 8 8 8"/></svg>
+    ↻ Daily Reset
+  </button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
