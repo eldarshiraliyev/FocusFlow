@@ -1,83 +1,107 @@
-let isBlocked = false;
+let activeTabId = null;
+let activeHostname = null;
+let timerInterval = null;
 
-const crazyScroll = (e) => {
-    if (isBlocked) {
-        e.preventDefault();
-        const direction = Math.random() > 0.7 ? -2 : 0.5; 
-        window.scrollBy({ top: e.deltaY * direction, behavior: 'instant' });
-    }
+// RAM-da saxlanacaq qlobal daxili keş (State)
+let appState = {
+    focusActive: false,
+    blockedSites: [],
+    spentTimes: {}
 };
 
-window.addEventListener('wheel', crazyScroll, { passive: false });
-window.addEventListener('touchmove', crazyScroll, { passive: false });
+// Sayğacın saniyələrini yaddaşda tutmaq üçün daxili obyekt
+let siteSecondsCache = {};
 
-// 1. Background-dan gələn dinamik bloklama mesajını tutmaq
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "blockSite" && !isBlocked) {
-        executeDigitalWall(request.color);
+// Sürətli yoxlama üçün storage-dən bir dəfə RAM-a yükləyirik
+function initializeState() {
+    chrome.storage.sync.get(['focusActive', 'blockedSitesObj', 'spentTimes'], (data) => {
+        appState.focusActive = data.focusActive !== undefined ? data.focusActive : false;
+        appState.blockedSites = data.blockedSitesObj || [];
+        appState.spentTimes = data.spentTimes || {};
+    });
+}
+
+// Runtime ərzində popup-dan və ya başqa yerdən gələn dinamik dəyişiklikləri izləyirik
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'sync') {
+        if (changes.focusActive) appState.focusActive = changes.focusActive.newValue;
+        if (changes.blockedSitesObj) appState.blockedSites = changes.blockedSitesObj.newValue;
+        if (changes.spentTimes) appState.spentTimes = changes.spentTimes.newValue;
     }
 });
 
-// 2. Səhifə yenilənəndə (Refresh) əgər limit artıq bitibsə, dərhal blokla
-function checkCurrentStatusOnLoad() {
-    chrome.storage.sync.get(['focusActive', 'blockedSitesObj', 'spentTimes'], (data) => {
-        if (!data.focusActive) return;
+// Extension işə düşəndə işləsin
+chrome.runtime.onInstalled.addListener(initializeState);
+chrome.runtime.onStartup.addListener(initializeState);
 
-        const currentHostname = window.location.hostname;
-        const sites = data.blockedSitesObj || [];
-        const matchedSite = sites.find(site => currentHostname.includes(site.url));
+// Tab hərəkətlərini dinləyirik
+chrome.tabs.onActivated.addListener(activeInfo => checkTab(activeInfo.tabId));
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if ((changeInfo.status === 'complete' || changeInfo.url) && tab.active) {
+        checkTab(tabId);
+    }
+});
 
-        if (matchedSite) {
-            const spentTimes = data.spentTimes || {};
-            const currentSpent = spentTimes[matchedSite.url] || 0;
-
-            if (currentSpent >= matchedSite.time) {
-                executeDigitalWall(matchedSite.color);
-            }
+function checkTab(tabId) {
+    chrome.tabs.get(tabId, (tab) => {
+        if (chrome.runtime.lastError || !tab || !tab.url) {
+            stopTracking();
+            return;
+        }
+        try {
+            const url = new URL(tab.url);
+            startTracking(tabId, url.hostname);
+        } catch(e) {
+            stopTracking();
         }
     });
 }
 
-function executeDigitalWall(alertColor) {
-    if (isBlocked) return;
-    isBlocked = true;
+function startTracking(tabId, hostname) {
+    if (activeTabId === tabId && activeHostname === hostname) return;
+    stopTracking();
 
-    // Səhifənin daxilini təmizləmək və ya tam örtmək üçün overlay
-    let overlay = document.getElementById("focus-overlay");
-    if (!overlay) {
-        overlay = document.createElement("div");
-        overlay.id = "focus-overlay";
-        document.body.appendChild(overlay);
-    }
+    activeTabId = tabId;
+    activeHostname = hostname;
 
-    Object.assign(overlay.style, {
-        position: "fixed", top: "0", left: "0", width: "100vw", height: "100vh",
-        zIndex: "2147483645", pointerEvents: "auto",
-        backgroundColor: `${alertColor}dd`, backdropFilter: "blur(10px) grayscale(100%)",
-        transition: "all 0.5s ease"
-    });
+    timerInterval = setInterval(() => {
+        // Hər saniyə storage-ə müraciət etmirik! RAM-dan yoxlayırıq.
+        if (!appState.focusActive || !activeHostname) return;
 
-    const alertBox = document.createElement("div");
-    alertBox.id = "focus-alert-box";
-    Object.assign(alertBox.style, {
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        backgroundColor: "#121212", color: "#fff", padding: "40px",
-        borderRadius: "16px", fontSize: "22px", fontWeight: "bold",
-        boxShadow: "0 20px 50px rgba(0,0,0,0.5)", border: `3px solid ${alertColor}`,
-        zIndex: "2147483647", fontFamily: "sans-serif", textAlign: "center",
-        maxWidth: "400px", width: "80%"
-    });
-    
-    alertBox.innerHTML = `
-        <div style="font-size: 50px; margin-bottom: 15px;">🛑</div>
-        <span style="color: ${alertColor}; text-transform: uppercase;">Daily Limit Reached!</span>
-        <p style="font-size: 14px; font-weight: normal; color: #a4b0be; margin: 15px 0 0 0;">
-            Your time for this platform has expired. The block will remain active even if you refresh. Welcome back to the real world!
-        </p>
-    `;
-    
-    document.body.appendChild(alertBox);
+        const matchedSite = appState.blockedSites.find(site => activeHostname.includes(site.url));
+
+        if (matchedSite) {
+            const targetUrl = matchedSite.url;
+            
+            if (!siteSecondsCache[targetUrl]) siteSecondsCache[targetUrl] = 0;
+            siteSecondsCache[targetUrl]++;
+
+            let currentSpent = appState.spentTimes[targetUrl] || 0;
+
+            // 60 saniyə tamam olanda yalnız 1 dəfə storage-ə yazırıq (Kvota dostu)
+            if (siteSecondsCache[targetUrl] >= 60) {
+                siteSecondsCache[targetUrl] = 0;
+                currentSpent++;
+                appState.spentTimes[targetUrl] = currentSpent;
+                chrome.storage.sync.set({ spentTimes: appState.spentTimes });
+            }
+
+            // Limiti anlıq olaraq daxili keşlə qəti yoxlayırıq (Gecikmə 0ms)
+            if (currentSpent >= matchedSite.time) {
+                chrome.tabs.sendMessage(activeTabId, { 
+                    action: "blockSite", 
+                    color: matchedSite.color 
+                }).catch(() => { /* Tab hələ mesaj qəbuluna tam hazır deyilsə xətanı yatırt */ });
+            }
+        }
+    }, 1000);
 }
 
-// Səhifə yüklənən kimi statusu yoxla
-checkCurrentStatusOnLoad();
+function stopTracking() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    activeTabId = null;
+    activeHostname = null;
+}
